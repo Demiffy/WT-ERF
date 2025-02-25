@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import sys
 import time
@@ -11,7 +10,7 @@ import pyautogui
 import cv2
 import numpy as np
 import pytesseract
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import mss
 from PIL import Image
 import tkinter as tk
@@ -33,7 +32,7 @@ signal.signal(signal.SIGINT, signal_handler)
 # Global Flags and Configurations
 # -----------------------------------------------------------
 CAPTURE_REGION = (1473, 635, 432, 432)
-OCR_REGION = (1800, 1044, 106, 20)
+OCR_REGION = (1750, 1044, 155, 20)  # left, top, width, height
 
 DIR_OUTPUT = os.path.join("static", "screenshots", "output")
 os.makedirs(DIR_OUTPUT, exist_ok=True)
@@ -201,7 +200,7 @@ def combined_loop():
 def ocr_scale_loop():
     """Loop to capture OCR of the scale and compute conversion factors."""
     global scale_number, scale_pixels, scale_locked, last_scale_value, last_scale_time
-    OCR_BLACK_THRESHOLD = 12
+    OCR_BLACK_THRESHOLD = 10
     LINE_BLACK_THRESHOLD = 1
     scale_locked = False
     last_scale_value = None
@@ -223,14 +222,12 @@ def ocr_scale_loop():
             ocr_img.save(LATEST_OCR_PATH)
             ocr_gray = cv2.cvtColor(np.array(ocr_img), cv2.COLOR_RGB2GRAY)
 
-            # Create a binary image and enhance it
             ocr_binary_img = np.where(ocr_gray < OCR_BLACK_THRESHOLD, 0, 255).astype(np.uint8)
             inverted = cv2.bitwise_not(ocr_binary_img)
             dilated = cv2.dilate(inverted, kernel, iterations=1)
             ocr_binary_img = cv2.bitwise_not(dilated)
             cv2.imwrite(LATEST_EDITED_OCR_PATH, ocr_binary_img)
 
-            # Compute scale_pixels by analyzing the last row for consecutive black pixels
             line_binary_img = np.where(ocr_gray < LINE_BLACK_THRESHOLD, 0, 255).astype(np.uint8)
             last_row = line_binary_img[-1, :]
             runs = [len(list(group)) for key, group in itertools.groupby(last_row) if key == 0]
@@ -282,6 +279,38 @@ def latest():
         "state_ingame_snapshot": state.latest_state_ingame_snapshot,
         "ui_state": state.ui_state
     })
+
+# ------------------- Manual Override Endpoints -------------------
+@app.route("/override", methods=["POST"])
+def override_scale():
+    """Manually override the OCR scale value and lock it."""
+    global scale_number, scale_locked, last_scale_value, last_scale_time
+    try:
+        new_scale = request.form.get("scale")
+        if new_scale:
+            scale_number = new_scale
+            scale_locked = True
+            last_scale_value = new_scale
+            last_scale_time = time.time()
+            utils.log(f"Manual override: Scale locked to {new_scale}", level="INFO", tag="OCR")
+            return jsonify({"status": "success", "message": f"Scale locked to {new_scale}"}), 200
+        else:
+            return jsonify({"status": "error", "message": "No scale value provided"}), 400
+    except Exception as e:
+        utils.log(f"Override error: {e}", level="ERROR", tag="OCR")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/unlock", methods=["POST"])
+def unlock_scale():
+    """Unlock manual override so that OCR can resume scale detection."""
+    global scale_number, scale_locked, last_scale_value, last_scale_time
+    scale_locked = False
+    scale_number = ""
+    last_scale_value = None
+    last_scale_time = time.time()
+    utils.log("Manual override unlocked", level="INFO", tag="OCR")
+    return jsonify({"status": "success", "message": "Manual override unlocked"}), 200
+# -------------------------------------------------------------------
 
 def start_overlay():
     """Start the overlay window using Tkinter."""

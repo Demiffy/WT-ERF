@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Rangefinder Dashboard</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootswatch/4.5.2/darkly/bootstrap.min.css">
+    <style>
+        body {
+            margin: 20px; 
+            background: #2b2b2b; 
+            color: #ddd;
+        }
+        .screenshot {
+            border: 2px solid #555;
+            margin-bottom: 20px;
+            background-color: #333;
+            min-height: 432px;
+        }
+        .ocr-screenshot {
+            border: 2px solid #555;
+            margin-bottom: 20px;
+            background-color: #333;
+            min-height: 20px;
+        }
+        .info-panel p {
+            font-size: 18px; 
+            margin: 5px 0;
+        }
+    </style>
+    <script>
+        function fetchLatest() {
+            fetch('/latest').then(r => r.json()).then(data => {
+                document.getElementById('tracked_img').src = data.image + '?t=' + new Date().getTime();
+                document.getElementById('edited_ocr_img').src = data.edited_ocr_snapshot + '?t=' + new Date().getTime();
+                document.getElementById('range_value').innerText = "Range: " + data.range.toFixed(2) + " m";
+                document.getElementById('ocr_number').innerText = "Scale Number: " + data.number;
+                document.getElementById('conversion_factor').innerText = "Conversion Factor: " + data.conversion_factor.toFixed(2);
+                document.getElementById('debug_info').innerText = "Debug: " + data.debug_info;
+                document.getElementById('black_line').innerText = "Scale Pixels: " + data.scale_pixels + " pixels";
+            }).catch(err => console.error("Fetch error:", err));
+        }
+        setInterval(fetchLatest, 1000);
+        window.onload = fetchLatest;
+    </script>
+</head>
+<body>
+<div class="container">
+    <h1 class="text-center my-4">Rangefinder Dashboard</h1>
+    <div class="row">
+        <div class="col-12 text-center">
+            <h3>Tracked Output</h3>
+            <img id="tracked_img" class="screenshot img-fluid" src="" alt="Tracked Output" width="432" height="432">
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-12 text-center">
+            <h3>Edited OCR Snapshot</h3>
+            <img id="edited_ocr_img" class="ocr-screenshot img-fluid" src="" alt="Edited OCR Snapshot" width="205" height="20">
+        </div>
+    </div>
+    <!-- Info Panel -->
+    <div class="row info-panel">
+        <div class="col-12 text-center">
+            <p id="range_value">Range: 0.00 m</p>
+            <p id="ocr_number">Scale Number: </p>
+            <p id="conversion_factor">Conversion Factor: 0.00</p>
+            <p id="debug_info">Debug: </p>
+            <p id="black_line">Scale Pixels: 0 pixels</p>
+        </div>
+    </div>
+</div>
+</body>
+</html>

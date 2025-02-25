@@ -1,18 +1,32 @@
-import os, sys, time, math, threading, signal, pyautogui, cv2, numpy as np, pytesseract, re
+#!/usr/bin/env python3
+import os
+import sys
+import time
+import math
+import threading
+import signal
+import itertools
+import re
+import pyautogui
+import cv2
+import numpy as np
+import pytesseract
 from flask import Flask, render_template, jsonify
-import mss, mss.tools
+import mss
 from PIL import Image
 import tkinter as tk
 import state
 import utils
 import logging
 from utils import log as custom_log
+
 exit_event = threading.Event()
 
 def signal_handler(sig, frame):
     custom_log("CTRL+C pressed. Exiting...", level="INFO", tag="EVENT")
     exit_event.set()
     sys.exit(0)
+
 signal.signal(signal.SIGINT, signal_handler)
 
 # -----------------------------------------------------------
@@ -20,10 +34,12 @@ signal.signal(signal.SIGINT, signal_handler)
 # -----------------------------------------------------------
 CAPTURE_REGION = (1473, 635, 432, 432)
 OCR_REGION = (1800, 1044, 106, 20)
+
 DIR_OUTPUT = os.path.join("static", "screenshots", "output")
 os.makedirs(DIR_OUTPUT, exist_ok=True)
 DIR_OCR = os.path.join("static", "screenshots", "ocr")
 os.makedirs(DIR_OCR, exist_ok=True)
+
 OUTPUT_IMAGE_PATH = os.path.join(DIR_OUTPUT, "tracked_target.png")
 LATEST_OCR_PATH = os.path.join(DIR_OCR, "latest_ocr.png")
 LATEST_EDITED_OCR_PATH = os.path.join(DIR_OCR, "latest_edited_ocr.png")
@@ -55,30 +71,35 @@ player_hex_colors = [
     "cdaf4a", "efce60", "a88a23", "dab32d", "e5bb2d", "f7d45f"
 ]
 ping_hex_colors = ["d8d807", "d6d607", "d0d007", "d1d107", "c8c807", "adad06", "b9b906", "bebe06"]
+
 hex_to_bgr = lambda s: np.array([int(s[i:i+2], 16) for i in (4, 2, 0)], dtype=np.uint8)
 target_colors = [hex_to_bgr(h) for h in player_hex_colors]
 ping_target_colors = [hex_to_bgr(h) for h in ping_hex_colors]
+
 tolerance = 4
 max_radius = 10
 
 def process_image(img):
+    """Highlight target colors in red."""
     output_img = img.copy()
     reshaped = img.reshape(-1, 3)
-    mask = np.zeros((reshaped.shape[0],), dtype=bool)
+    mask = np.zeros(reshaped.shape[0], dtype=bool)
     for target in target_colors:
         mask |= (np.linalg.norm(reshaped.astype(np.int16) - target.astype(np.int16), axis=1) < tolerance)
     output_img.reshape(-1, 3)[mask] = [0, 0, 255]
     return output_img, mask
 
 def process_ping(img):
+    """Highlight ping target colors."""
     output_img = img.copy()
     reshaped = img.reshape(-1, 3)
-    ping_mask = np.zeros((reshaped.shape[0],), dtype=bool)
+    ping_mask = np.zeros(reshaped.shape[0], dtype=bool)
     for target in ping_target_colors:
         ping_mask |= (np.linalg.norm(reshaped.astype(np.int16) - target.astype(np.int16), axis=1) < tolerance)
     return output_img, ping_mask
 
 def get_enclosing_circle(mask, shape):
+    """Get the smallest circle that encloses non-zero mask pixels."""
     h, w = shape[:2]
     mask_2d = mask.reshape(h, w).astype(np.uint8)
     pts = cv2.findNonZero(mask_2d)
@@ -98,23 +119,22 @@ distance_threshold = 20
 min_count_threshold = 2
 
 def write_placeholder():
+    """Write a placeholder image indicating tracking is paused."""
     placeholder = np.zeros((CAPTURE_REGION[3], CAPTURE_REGION[2], 3), dtype=np.uint8)
     cv2.imwrite(OUTPUT_IMAGE_PATH, overlay_text(placeholder, "Tracking paused", (0, 0, 255), (10, 30)))
 
-# -----------------------------------------------------------
-# Combined Capture Loop (Tracking)
-# -----------------------------------------------------------
 def combined_loop():
+    """Capture and process images to track targets."""
     global prev_center, prev_count, stable_count, latest_range_m, tracking_active, conversion_factor, debug_info, scale_pixels, scale_number
     with mss.mss() as sct:
-        monitor = {"left": CAPTURE_REGION[0], "top": CAPTURE_REGION[1], "width": CAPTURE_REGION[2], "height": CAPTURE_REGION[3]}
+        monitor = {
+            "left": CAPTURE_REGION[0],
+            "top": CAPTURE_REGION[1],
+            "width": CAPTURE_REGION[2],
+            "height": CAPTURE_REGION[3]
+        }
         while not exit_event.is_set():
-            if not utils.is_aces_in_focus():
-                write_placeholder()
-                time.sleep(0.1)
-                continue
-
-            if state.ui_state != "ingame":
+            if not utils.is_aces_in_focus() or state.ui_state != "ingame":
                 write_placeholder()
                 time.sleep(0.1)
                 continue
@@ -124,9 +144,12 @@ def combined_loop():
             img = cv2.cvtColor(np.array(sct_img), cv2.COLOR_BGRA2BGR)
             processed_img, mask = process_image(img)
             center, radius, count = get_enclosing_circle(mask, img.shape)
-            msg, text_color = (f"Player: {count} pixels", (255, 255, 255)) if count > 0 else ("No Player", (0, 0, 255))
+            msg = f"Player: {count} pixels" if count > 0 else "No Player"
+            text_color = (255, 255, 255) if count > 0 else (0, 0, 255)
+
             if count < min_count_threshold:
                 prev_center, prev_count, stable_count = None, 0, 0
+
             if center:
                 if prev_center is None:
                     prev_center, prev_count, stable_count = center, count, 1
@@ -143,16 +166,17 @@ def combined_loop():
                         prev_center, prev_count, stable_count = center, count, 0
             else:
                 prev_center, prev_count, stable_count = None, 0, 0
+
             circled = draw_filled_circle(processed_img, center, radius)
             output_img = overlay_text(circled, msg, text_color, (10, 30))
-            
+
             def process_ping_local(img):
                 reshaped = img.reshape(-1, 3)
-                local_ping_mask = np.zeros((reshaped.shape[0],), dtype=bool)
+                local_ping_mask = np.zeros(reshaped.shape[0], dtype=bool)
                 for target in ping_target_colors:
                     local_ping_mask |= (np.linalg.norm(reshaped.astype(np.int16) - target.astype(np.int16), axis=1) < tolerance)
                 return img.copy(), local_ping_mask
-            
+
             _, ping_mask = process_ping_local(img)
             ping_center, ping_radius, ping_count = get_enclosing_circle(ping_mask, img.shape)
             if ping_count > 0:
@@ -160,27 +184,22 @@ def combined_loop():
                 if center and ping_center:
                     cv2.line(output_img, ping_center, center, (255, 255, 255), 2)
                     dx, dy = ping_center[0] - center[0], ping_center[1] - center[1]
-                    pixel_distance = math.sqrt(dx * dx + dy * dy)
+                    pixel_distance = math.hypot(dx, dy)
                     try:
                         scale_val = int(round(float(scale_number)))
-                    except:
+                    except Exception:
                         scale_val = 0
-                    if scale_val == 0 or scale_pixels == 0:
-                        conversion_factor = 0
-                    else:
-                        conversion_factor = float(scale_val) / float(scale_pixels)
+                    conversion_factor = float(scale_val) / float(scale_pixels) if scale_val and scale_pixels else 0
                     debug_info = f"Scale Number: {scale_val}, Scale Pixels: {scale_pixels}, CF: {conversion_factor:.2f}"
                     cv2.putText(output_img, debug_info, (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
-                    range_m = pixel_distance * conversion_factor
-                    latest_range_m = range_m
-                    cv2.putText(output_img, f"Range: {range_m:.2f} m", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                    latest_range_m = pixel_distance * conversion_factor
+                    cv2.putText(output_img, f"Range: {latest_range_m:.2f} m", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
             cv2.imwrite(OUTPUT_IMAGE_PATH, output_img)
             time.sleep(0.1)
 
-# -----------------------------------------------------------
-# OCR Loop for Scale Number and Snapshot Saving with Postprocessing
-# -----------------------------------------------------------
 def ocr_scale_loop():
+    """Loop to capture OCR of the scale and compute conversion factors."""
     global scale_number, scale_pixels, scale_locked, last_scale_value, last_scale_time
     OCR_BLACK_THRESHOLD = 12
     LINE_BLACK_THRESHOLD = 1
@@ -188,7 +207,7 @@ def ocr_scale_loop():
     last_scale_value = None
     last_scale_time = time.time()
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-    
+
     while not exit_event.is_set():
         if not utils.is_aces_in_focus() or state.ui_state != "ingame":
             if scale_locked:
@@ -203,29 +222,23 @@ def ocr_scale_loop():
             ocr_img = pyautogui.screenshot(region=OCR_REGION)
             ocr_img.save(LATEST_OCR_PATH)
             ocr_gray = cv2.cvtColor(np.array(ocr_img), cv2.COLOR_RGB2GRAY)
-            
+
+            # Create a binary image and enhance it
             ocr_binary_img = np.where(ocr_gray < OCR_BLACK_THRESHOLD, 0, 255).astype(np.uint8)
             inverted = cv2.bitwise_not(ocr_binary_img)
             dilated = cv2.dilate(inverted, kernel, iterations=1)
             ocr_binary_img = cv2.bitwise_not(dilated)
-            
             cv2.imwrite(LATEST_EDITED_OCR_PATH, ocr_binary_img)
-            
+
+            # Compute scale_pixels by analyzing the last row for consecutive black pixels
             line_binary_img = np.where(ocr_gray < LINE_BLACK_THRESHOLD, 0, 255).astype(np.uint8)
             last_row = line_binary_img[-1, :]
-            max_run = 0
-            current_run = 0
-            for pixel in last_row:
-                if pixel == 0:
-                    current_run += 1
-                else:
-                    max_run = max(max_run, current_run)
-                    current_run = 0
-            scale_pixels = max(max_run, current_run)
-            
+            runs = [len(list(group)) for key, group in itertools.groupby(last_row) if key == 0]
+            scale_pixels = max(runs) if runs else 0
+
             raw_text = pytesseract.image_to_string(ocr_binary_img, config=TESS_CONFIG).strip()
             clean_text = re.sub(r'\D', '', raw_text)
-            
+
             if len(clean_text) == 3 and clean_text.endswith('0'):
                 if not scale_locked:
                     if last_scale_value == clean_text:
@@ -247,8 +260,7 @@ def ocr_scale_loop():
 # -----------------------------------------------------------
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
-werkzeug_logger = logging.getLogger('werkzeug')
-werkzeug_logger.disabled = True
+logging.getLogger('werkzeug').disabled = True
 app.logger.disabled = True
 
 @app.route("/")
@@ -272,6 +284,7 @@ def latest():
     })
 
 def start_overlay():
+    """Start the overlay window using Tkinter."""
     root = tk.Tk()
     root.overrideredirect(True)
     root.attributes("-topmost", True)
@@ -282,12 +295,12 @@ def start_overlay():
     frame.pack()
     label = tk.Label(frame, text="Range: 0.00 m", font=("Arial", 24, "bold"), fg="lime", bg="black")
     label.pack(expand=True)
-    
+
     def on_escape(event):
         exit_event.set()
         root.destroy()
     root.bind("<Escape>", on_escape)
-    
+
     def refresh_overlay():
         if state.ui_state == "ingame" and utils.is_aces_in_focus():
             root.deiconify()
@@ -298,6 +311,7 @@ def start_overlay():
             root.after(100, refresh_overlay)
         else:
             root.destroy()
+
     refresh_overlay()
     try:
         root.mainloop()
@@ -305,6 +319,7 @@ def start_overlay():
         print(f"Overlay error: {e}")
 
 def start_rangefinder():
+    """Start all threads for the rangefinder system and Flask server."""
     threading.Thread(target=ocr_scale_loop, daemon=True).start()
     threading.Thread(target=combined_loop, daemon=True).start()
     threading.Thread(target=state.ocr_state_loop, daemon=True).start()

@@ -1,15 +1,30 @@
-import os, time, pyautogui, pytesseract, re
+import os
+import time
+import pyautogui
+import pytesseract
+import re
 import utils
 
-UI_MAP_VIEW_REGION = (255, 725, 100, 20) # left, top, width, height
+# -----------------------------------------------------------
+# Regions for UI OCR
+# -----------------------------------------------------------
+UI_MAP_VIEW_REGION = (255, 725, 100, 20)# left, top, width, height
 UI_STATISTICS_REGION = (65, 75, 110, 40)
 UI_MAINMENU_REGION = (300, 878, 1020, 20)
 UI_INGAME_REGION = (15, 995, 105, 70)
 
-main_menu_keywords = ["usa", "germany", "ussr", "great britain", "japan", "china", "italy", "france", "sweden", "israel"]
+# List of main menu keywords
+main_menu_keywords = [
+    "usa", "germany", "ussr", "great britain", "japan",
+    "china", "italy", "france", "sweden", "israel"
+]
 
+# -----------------------------------------------------------
+# Setup directories for saving screenshots
+# -----------------------------------------------------------
 STATE_DIR = os.path.join("static", "screenshots", "state")
 os.makedirs(STATE_DIR, exist_ok=True)
+
 STATE_IMAGE_PATH = os.path.join(STATE_DIR, "latest_state.png")
 latest_state_snapshot = "/static/screenshots/state/latest_state.png"
 STATE_EXTRA_IMAGE_PATH = os.path.join(STATE_DIR, "latest_state_extra.png")
@@ -58,10 +73,11 @@ def ocr_state_loop():
                 ui_state = "ingame"
             elif any(keyword in lower_mainmenu for keyword in main_menu_keywords):
                 ui_state = "main_menu"
-            elif ("time left" in lower_text2 or "time" in lower_text2 or 
+            elif ("time left" in lower_text2 or "time" in lower_text2 or
                   "left" in lower_text2 or "conditions" in lower_text2):
                 ui_state = "statistics_view"
-            elif "chat" in lower_text1 or "battle" in lower_text1 or "chat" in lower_text2 or "battle" in lower_text2:
+            elif "chat" in lower_text1 or "battle" in lower_text1 or \
+                 "chat" in lower_text2 or "battle" in lower_text2:
                 ui_state = "map_view"
             else:
                 ui_state = "unknown"

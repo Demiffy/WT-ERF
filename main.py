@@ -57,6 +57,14 @@ scale_locked = False
 last_scale_value = None
 last_scale_time = 0
 
+# Player tracking variables
+prev_center = None
+prev_count = 0
+stable_count = 0
+stable_threshold = 3
+distance_threshold = 20
+min_count_threshold = 2
+
 # -----------------------------------------------------------
 # Colors & Utility Functions
 # -----------------------------------------------------------
@@ -109,13 +117,6 @@ def get_enclosing_circle(mask, shape):
 
 draw_filled_circle = lambda img, c, r, col=(0, 0, 255): cv2.circle(img.copy(), c, r, col, -1) if c and r else img.copy()
 overlay_text = lambda img, text, col=(255, 255, 255), pos=(10, 30): cv2.putText(img.copy(), text, pos, cv2.FONT_HERSHEY_SIMPLEX, 1, col, 2)
-
-prev_center = None
-prev_count = 0
-stable_count = 0
-stable_threshold = 3
-distance_threshold = 20
-min_count_threshold = 2
 
 def write_placeholder():
     """Write a placeholder image indicating tracking is paused."""
@@ -310,6 +311,14 @@ def unlock_scale():
     last_scale_time = time.time()
     utils.log("Manual override unlocked", level="INFO", tag="OCR")
     return jsonify({"status": "success", "message": "Manual override unlocked"}), 200
+
+@app.route("/reset", methods=["POST"])
+def reset_player_position():
+    """Reset the player's tracking position."""
+    global prev_center, prev_count, stable_count
+    prev_center, prev_count, stable_count = None, 0, 0
+    utils.log("Player position reset", level="INFO", tag="PROCESS")
+    return jsonify({"status": "success", "message": "Player position has been reset."}), 200
 # -------------------------------------------------------------------
 
 def start_overlay():
@@ -365,6 +374,7 @@ def start_rangefinder():
 if __name__ == "__main__":
     utils.check_resolution()
     utils.wait_for_aces()
+    utils.log("Control panel on: http://127.0.0.1:5001", level="PANEL", tag="URL")
     try:
         start_rangefinder()
     except KeyboardInterrupt:

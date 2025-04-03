@@ -17,6 +17,7 @@ LEVEL_COLORS = {
     "WARN": Fore.YELLOW,
     "ERROR": Fore.RED,
     "DEBUG": Fore.MAGENTA,
+    "PANEL": Fore.LIGHTCYAN_EX,
 }
 
 TAG_COLORS = {
@@ -30,6 +31,7 @@ TAG_COLORS = {
     "EVENT": Fore.LIGHTMAGENTA_EX,
     "MINIMAP": Fore.LIGHTYELLOW_EX,
     "RANGE": Fore.LIGHTCYAN_EX,
+    "URL": Fore.LIGHTGREEN_EX,
 }
 
 def log(message, level="INFO", tag=None):

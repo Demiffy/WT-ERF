@@ -1,134 +1,169 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Rangefinder Dashboard</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootswatch/4.5.2/darkly/bootstrap.min.css">
-    <style>
-        body {
-            margin-top: 20px;
-            background: #2b2b2b;
-            color: #ddd;
-        }
-        .screenshot {
-            border: 2px solid #555;
-            background-color: #333;
-            min-height: 432px;
-        }
-        .ocr-screenshot {
-            border: 2px solid #555;
-            background-color: #333;
-            min-height: 20px;
-        }
-        .info-panel p, .override-panel p {
-            font-size: 18px;
-            margin: 5px 0;
-        }
-    </style>
-    <script>
-        function fetchLatest() {
-            fetch('/latest')
-              .then(r => r.json())
-              .then(data => {
-                  document.getElementById('tracked_img').src = data.image + '?t=' + new Date().getTime();
-                  document.getElementById('edited_ocr_img').src = data.edited_ocr_snapshot + '?t=' + new Date().getTime();
-                  document.getElementById('range_value').innerText = "Range: " + data.range.toFixed(2) + " m";
-                  document.getElementById('ocr_number').innerText = "Scale Number: " + data.number;
-                  document.getElementById('conversion_factor').innerText = "Conversion Factor: " + data.conversion_factor.toFixed(2);
-                  document.getElementById('debug_info').innerText = "Debug: " + data.debug_info;
-                  document.getElementById('black_line').innerText = "Scale Pixels: " + data.scale_pixels + " pixels";
-              })
-              .catch(err => console.error("Fetch error:", err));
-        }
-        setInterval(fetchLatest, 1000);
-        window.onload = fetchLatest;
+  <meta charset="UTF-8">
+  <title>Rangefinder Dashboard</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootswatch/4.5.2/darkly/bootstrap.min.css">
+  <style>
+    body {
+      background: linear-gradient(135deg, #0E0E0E, #1f1e1e);
+      color: #eee;
+      padding-bottom: 40px;
+      overflow-y: hidden;
+    }
+    .jumbotron {
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      background: rgba(0,0,0,0.5);
+      border-radius: .3rem;
+      text-align: center;
+    }
+    .jumbotron h1 {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+      color: #fff;
+    }
+    .jumbotron p {
+      font-size: 1rem;
+      margin-bottom: 0;
+      color: #fff;
+    }
+    .card {
+      margin-bottom: 1.5rem;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .card-header {
+      background: linear-gradient(135deg, #2666CF, #164a9e);
+      color: #fff;
+    }
+    .screenshot, .ocr-screenshot {
+      border: 2px solid #444;
+      background-color: #2a2a2a;
+      transition: transform 0.2s ease-in-out;
+    }
+    .screenshot:hover, .ocr-screenshot:hover {
+      transform: scale(1.02);
+    }
+    .form-inline .form-control {
+      width: auto;
+    }
+  </style>
+  <script>
+    function fetchLatest() {
+      fetch('/latest')
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('tracked_img').src = data.image + '?t=' + new Date().getTime();
+          document.getElementById('edited_ocr_img').src = data.edited_ocr_snapshot + '?t=' + new Date().getTime();
+          document.getElementById('range_value').innerText = "Range: " + data.range.toFixed(2) + " m";
+          document.getElementById('ocr_number').innerText = "Scale Number: " + data.number;
+          document.getElementById('conversion_factor').innerText = "Conversion Factor: " + data.conversion_factor.toFixed(2);
+          document.getElementById('debug_info').innerText = "Debug: " + data.debug_info;
+          document.getElementById('black_line').innerText = "Scale Pixels: " + data.scale_pixels + " pixels";
+        })
+        .catch(err => console.error("Fetch error:", err));
+    }
+    setInterval(fetchLatest, 1000);
+    window.onload = fetchLatest;
 
-        function overrideScale() {
-            var scaleVal = document.getElementById("manual_scale").value;
-            if (!scaleVal) {
-                alert("Please enter a scale value.");
-                return;
-            }
-            fetch('/override', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: "scale=" + encodeURIComponent(scaleVal)
-            })
-            .then(response => response.json())
-            .then(data => alert(data.message))
-            .catch(error => console.error("Error:", error));
-        }
+    function overrideScale() {
+      var scaleVal = document.getElementById("manual_scale").value;
+      if (!scaleVal) {
+        alert("Please enter a scale value.");
+        return;
+      }
+      fetch('/override', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: "scale=" + encodeURIComponent(scaleVal)
+      })
+      .then(response => response.json())
+      .then(data => alert(data.message))
+      .catch(error => console.error("Error:", error));
+    }
 
-        function unlockScale() {
-            fetch('/unlock', { method: 'POST' })
-            .then(response => response.json())
-            .then(data => alert(data.message))
-            .catch(error => console.error("Error:", error));
-        }
-    </script>
+    function unlockScale() {
+      fetch('/unlock', { method: 'POST' })
+      .then(response => response.json())
+      .then(data => alert(data.message))
+      .catch(error => console.error("Error:", error));
+    }
+
+    function resetPlayerPosition() {
+      fetch('/reset', { method: 'POST' })
+      .then(response => response.json())
+      .then(data => alert(data.message))
+      .catch(error => console.error("Error:", error));
+    }
+  </script>
 </head>
 <body>
-<div class="container">
-    <div class="jumbotron text-center bg-dark text-light">
-        <h1 class="display-4">Rangefinder Dashboard</h1>
-        <p class="lead">Real-time tracking and manual scale override</p>
+  <div class="container">
+    <div class="jumbotron">
+      <h1>WAR THUNDER RANGEFINDER</h1>
+      <p>Rangefinder Control Panel</p>
     </div>
 
     <div class="row">
-        <!-- Tracked Output Panel -->
-        <div class="col-md-6 mb-4">
-            <div class="card bg-secondary text-light">
-                <div class="card-header">
-                    <h4 class="card-title">Tracked Output</h4>
-                </div>
-                <div class="card-body text-center">
-                    <img id="tracked_img" class="img-fluid screenshot" src="" alt="Tracked Output">
-                </div>
-            </div>
+      <!-- Tracked Output Panel -->
+      <div class="col-lg-6 mb-4">
+        <div class="card bg-secondary text-light">
+          <div class="card-header">
+            <h4 class="card-title">Minimap Output</h4>
+          </div>
+          <div class="card-body text-center">
+            <img id="tracked_img" class="img-fluid screenshot" src="" alt="Tracked Output">
+          </div>
         </div>
-        <!-- Edited OCR Snapshot Panel -->
-        <div class="col-md-6 mb-4">
-            <div class="card bg-secondary text-light">
-                <div class="card-header">
-                    <h4 class="card-title">Edited OCR Snapshot</h4>
-                </div>
-                <div class="card-body text-center">
-                    <img id="edited_ocr_img" class="img-fluid ocr-screenshot" src="" alt="Edited OCR Snapshot">
-                </div>
-            </div>
-        </div>
-    </div>
+      </div>
 
-    <!-- Information Panel -->
-    <div class="card bg-secondary text-light mb-4">
-        <div class="card-header">
-            <h4 class="card-title">Information</h4>
+      <!-- Edited OCR Snapshot and Information Panel -->
+      <div class="col-lg-6 mb-4">
+        <div class="card bg-secondary text-light">
+          <div class="card-header">
+            <h4 class="card-title">Map Scale</h4>
+          </div>
+          <div class="card-body text-center">
+            <img id="edited_ocr_img" class="img-fluid ocr-screenshot" src="" alt="Edited OCR Snapshot">
+          </div>
         </div>
-        <div class="card-body">
+
+        <div class="card bg-secondary text-light">
+          <div class="card-header">
+            <h4 class="card-title">Information</h4>
+          </div>
+          <div class="card-body">
             <p id="range_value">Range: 0.00 m</p>
             <p id="ocr_number">Scale Number: </p>
             <p id="conversion_factor">Conversion Factor: 0.00</p>
             <p id="debug_info">Debug: </p>
             <p id="black_line">Scale Pixels: 0 pixels</p>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Manual Override Panel -->
     <div class="card bg-secondary text-light mb-4">
-        <div class="card-header">
-            <h4 class="card-title">Manual Scale Override</h4>
-        </div>
-        <div class="card-body">
-            <form class="form-inline justify-content-center">
-                <div class="form-group mb-2">
-                    <label for="manual_scale" class="sr-only">Scale Value</label>
-                    <input type="text" class="form-control" id="manual_scale" placeholder="Enter scale value">
-                </div>
-                <button type="button" class="btn btn-primary mb-2 ml-2" onclick="overrideScale()">Lock Scale</button>
-                <button type="button" class="btn btn-warning mb-2 ml-2" onclick="unlockScale()">Unlock Scale</button>
-            </form>
-        </div>
+      <div class="card-header">
+        <h4 class="card-title">Manual Controls</h4>
+      </div>
+      <div class="card-body">
+        <form class="form-inline justify-content-center">
+          <div class="form-group mb-2">
+            <label for="manual_scale" class="sr-only">Scale Value</label>
+            <input type="text" class="form-control" id="manual_scale" placeholder="Enter scale value">
+          </div>
+          <button type="button" class="btn btn-primary mb-2 ml-2" onclick="overrideScale()">Lock Scale</button>
+          <button type="button" class="btn btn-warning mb-2 ml-2" onclick="unlockScale()">Unlock Scale</button>
+          <button type="button" class="btn btn-danger mb-2 ml-2" onclick="resetPlayerPosition()">Reset Player Position</button>
+        </form>
+      </div>
     </div>
-</div>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

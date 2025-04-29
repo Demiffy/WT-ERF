@@ -134,7 +134,19 @@ def combined_loop():
             "height": CAPTURE_REGION[3]
         }
         while not exit_event.is_set():
-            if not utils.is_aces_in_focus() or state.ui_state != "ingame":
+            # Check for focus loss
+            if not utils.is_aces_in_focus():
+                write_placeholder()
+                time.sleep(0.1)
+                continue
+
+            if state.ui_state in ["map_view", "statistics_view"]:
+                prev_center, prev_count, stable_count = None, 0, 0
+                write_placeholder()
+                time.sleep(0.1)
+                continue
+
+            if state.ui_state != "ingame":
                 write_placeholder()
                 time.sleep(0.1)
                 continue
